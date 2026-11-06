@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export interface SpeechState {
-  supported: boolean;
   speaking: boolean;
   paused: boolean;
   muted: boolean;
@@ -30,7 +29,6 @@ function pickSpanishVoice(
   voices: SpeechSynthesisVoice[],
 ): SpeechSynthesisVoice | null {
   if (voices.length === 0) return null;
-  // preferimos es-MX, luego es-ES, luego cualquier español
   for (const lang of SPANISH_LANGS) {
     const exact = voices.find((v) => v.lang.toLowerCase() === lang.toLowerCase());
     if (exact) return exact;
@@ -40,8 +38,13 @@ function pickSpanishVoice(
 }
 
 export function useSpeech() {
+  // Soporte inicial determinado de forma perezosa (evita setState síncrono en effect)
+  const [supported] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return typeof window.speechSynthesis !== "undefined";
+  });
+
   const [state, setState] = useState<SpeechState>({
-    supported: false,
     speaking: false,
     paused: false,
     muted: false,
@@ -54,38 +57,30 @@ export function useSpeech() {
 
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
   const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
-  // guardamos id+texto del nodo activo para poder repetir
+  // guardamos id+texto del nodo activo para poder repetir/reanudar
   const activeNodeRef = useRef<{ id: string; text: string } | null>(null);
   // bandera para saber si la cancelación fue intencional (stop/mute)
   const cancelledRef = useRef(false);
 
-  // Inicialización: soporte y voces
+  // Cargar voces (actualización reactiva desde un sistema externo)
   useEffect(() => {
-    if (typeof window === "undefined") return;
+    if (!supported) return;
     const synth = window.speechSynthesis;
-    if (!synth) {
-      setState((s) => ({ ...s, supported: false }));
-      return;
-    }
-    setState((s) => ({ ...s, supported: true }));
 
     const loadVoices = () => {
       const voices = synth.getVoices();
-      if (voices.length > 0) {
-        voicesRef.current = voices;
-        const spanish = pickSpanishVoice(voices);
-        setState((s) => ({
-          ...s,
-          voicesReady: true,
-          hasSpanishVoice: spanish !== null,
-        }));
-      }
+      voicesRef.current = voices;
+      const spanish = pickSpanishVoice(voices);
+      setState((s) => ({
+        ...s,
+        // consideramos "listas" cuando getVoices() responde (aunque sea vacío)
+        voicesReady: true,
+        hasSpanishVoice: spanish !== null,
+      }));
     };
 
     loadVoices();
-    // algunos navegadores cargan las voces de forma asíncrona
     synth.addEventListener?.("voiceschanged", loadVoices);
-    // respaldo: reintenta tras 1s
     const t = window.setTimeout(loadVoices, 1000);
     return () => {
       synth.removeEventListener?.("voiceschanged", loadVoices);
@@ -96,7 +91,7 @@ export function useSpeech() {
         /* noop */
       }
     };
-  }, []);
+  }, [supported]);
 
   const buildUtterance = useCallback((text: string) => {
     const synth = window.speechSynthesis;
@@ -112,121 +107,14 @@ export function useSpeech() {
     utter.rate = 0.95;
     utter.pitch = 1;
     utter.volume = 1;
+    void synth;
     return utter;
   }, []);
 
-  const speak = useCallback(
-    ({ id, text, muted }: SpeakOptions) => {
-      if (typeof window === "undefined") return;
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-
-      cancelledRef.current = false;
-      // detener cualquier narración anterior
-      try {
-        synth.cancel();
-      } catch {
-        /* noop */
-      }
-
-      activeNodeRef.current = { id, text };
-
-      setState((s) => ({
-        ...s,
-        currentId: id,
-        transcript: text,
-        boundaryChar: 0,
-        speaking: !muted,
-        paused: muted ? false : s.paused,
-      }));
-
-      // si está silenciado, no generamos audio, solo marcamos el texto
-      if (muted) {
-        // simulamos avance del "límite" para que la transcripción avance sin audio
-        return;
-      }
-
-      const utter = buildUtterance(text);
-      currentUtteranceRef.current = utter;
-
-      utter.onstart = () => {
-        setState((s) => ({ ...s, speaking: true, paused: false }));
-      };
-      utter.onpause = () => {
-        setState((s) => ({ ...s, paused: true }));
-      };
-      utter.onresume = () => {
-        setState((s) => ({ ...s, paused: false }));
-      };
-      utter.onend = () => {
-        if (cancelledRef.current) return;
-        setState((s) => ({
-          ...s,
-          speaking: false,
-          paused: false,
-          boundaryChar: s.transcript.length,
-        }));
-      };
-      utter.onerror = (e) => {
-        // ignoramos el error "interrupted"/"canceled" que ocurre al cancelar a propósito
-        const err = e as SpeechSynthesisErrorEvent;
-        if (err?.error === "interrupted" || err?.error === "canceled") return;
-        setState((s) => ({ ...s, speaking: false, paused: false }));
-      };
-      utter.onboundary = (e) => {
-        if (typeof e.charIndex === "number") {
-          setState((s) => ({ ...s, boundaryChar: e.charIndex }));
-        }
-      };
-
-      // pequeño retraso para que cancel() termine en navegadores estrictos
-      window.setTimeout(() => {
-        try {
-          synth.speak(utter);
-        } catch {
-          /* noop */
-        }
-      }, 60);
-    },
-    [buildUtterance],
-  );
-
-  const pause = useCallback(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.speechSynthesis.pause();
-    } catch {
-      /* noop */
-    }
-    setState((s) => ({ ...s, paused: true, speaking: true }));
-  }, []);
-
-  const resume = useCallback(() => {
-    if (typeof window === "undefined") return;
-    const synth = window.speechSynthesis;
-    if (!synth) return;
-    if (state.muted) return;
-    try {
-      // algunos navegadores requieren speak() para reanudar tras cancel
-      if (synth.paused) {
-        synth.resume();
-      } else if (activeNodeRef.current && !currentUtteranceRef.current) {
-        // re-crear utterance si fue cancelado
-        const utter = buildUtterance(activeNodeRef.current.text);
-        currentUtteranceRef.current = utter;
-        attachEvents(utter);
-        synth.speak(utter);
-      }
-    } catch {
-      /* noop */
-    }
-    setState((s) => ({ ...s, paused: false, speaking: true }));
-  }, [buildUtterance, state.muted]);
-
-  // helper para reenganchar eventos al reanudar
-  function attachEvents(utter: SpeechSynthesisUtterance) {
-    const active = activeNodeRef.current;
-    utter.onstart = () => setState((s) => ({ ...s, speaking: true, paused: false }));
+  // helper para enlazar eventos del utterance; declarado antes que los usarios
+  const attachEvents = useCallback((utter: SpeechSynthesisUtterance) => {
+    utter.onstart = () =>
+      setState((s) => ({ ...s, speaking: true, paused: false }));
     utter.onpause = () => setState((s) => ({ ...s, paused: true }));
     utter.onresume = () => setState((s) => ({ ...s, paused: false }));
     utter.onend = () => {
@@ -248,8 +136,80 @@ export function useSpeech() {
         setState((s) => ({ ...s, boundaryChar: e.charIndex }));
       }
     };
-    void active;
-  }
+  }, []);
+
+  const speak = useCallback(
+    ({ id, text, muted }: SpeakOptions) => {
+      if (typeof window === "undefined") return;
+      const synth = window.speechSynthesis;
+      if (!synth) return;
+
+      cancelledRef.current = false;
+      try {
+        synth.cancel();
+      } catch {
+        /* noop */
+      }
+
+      activeNodeRef.current = { id, text };
+
+      setState((s) => ({
+        ...s,
+        currentId: id,
+        transcript: text,
+        boundaryChar: 0,
+        speaking: !muted,
+        paused: muted ? false : s.paused,
+      }));
+
+      if (muted) {
+        return;
+      }
+
+      const utter = buildUtterance(text);
+      currentUtteranceRef.current = utter;
+      attachEvents(utter);
+
+      window.setTimeout(() => {
+        try {
+          synth.speak(utter);
+        } catch {
+          /* noop */
+        }
+      }, 60);
+    },
+    [attachEvents, buildUtterance],
+  );
+
+  const pause = useCallback(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.speechSynthesis.pause();
+    } catch {
+      /* noop */
+    }
+    setState((s) => ({ ...s, paused: true, speaking: true }));
+  }, []);
+
+  const resume = useCallback(() => {
+    if (typeof window === "undefined") return;
+    const synth = window.speechSynthesis;
+    if (!synth) return;
+    if (state.muted) return;
+    try {
+      if (synth.paused) {
+        synth.resume();
+      } else if (activeNodeRef.current && !currentUtteranceRef.current) {
+        const utter = buildUtterance(activeNodeRef.current.text);
+        currentUtteranceRef.current = utter;
+        attachEvents(utter);
+        synth.speak(utter);
+      }
+    } catch {
+      /* noop */
+    }
+    setState((s) => ({ ...s, paused: false, speaking: true }));
+  }, [attachEvents, buildUtterance, state.muted]);
 
   const stop = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -281,7 +241,6 @@ export function useSpeech() {
     setState((s) => {
       const nextMuted = !s.muted;
       if (nextMuted) {
-        // silenciar: cancelar audio pero mantener el texto visible
         cancelledRef.current = true;
         try {
           window.speechSynthesis.cancel();
@@ -289,14 +248,8 @@ export function useSpeech() {
           /* noop */
         }
         currentUtteranceRef.current = null;
-        return {
-          ...s,
-          muted: true,
-          speaking: false,
-          paused: false,
-        };
+        return { ...s, muted: true, speaking: false, paused: false };
       }
-      // reactivar voz: si hay un nodo activo, reanudar narración
       cancelledRef.current = false;
       const active = activeNodeRef.current;
       if (active) {
@@ -312,10 +265,10 @@ export function useSpeech() {
       }
       return { ...s, muted: false };
     });
-  }, [buildUtterance]);
+  }, [attachEvents, buildUtterance]);
 
   return {
-    state,
+    state: { ...state, supported },
     speak,
     pause,
     resume,
