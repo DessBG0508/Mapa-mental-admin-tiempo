@@ -30,7 +30,7 @@ export interface MindBranch {
 export const centralNode: MindNode = {
   id: "central",
   title: "Administración del tiempo en Scrum",
-  subtitle: "El tiempo como recurso fijo y decisorio",
+  subtitle: "El tiempo como recurso fijo",
   script:
     "Imagina que el tiempo es el único recurso que en Scrum no se puede negociar. En el proyecto Equilibra TESH, el equipo aprendió que administrar el tiempo no significa apurarse, sino proteger eventos cortos y frecuentes para inspeccionar y adaptar. Esa es la base de todo lo que vamos a explorar.",
   example:

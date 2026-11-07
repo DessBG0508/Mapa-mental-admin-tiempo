@@ -31,14 +31,14 @@ interface MindMapCanvasProps {
 
 // Geometría del mapa (en unidades SVG)
 const CENTER_X = 500;
-const CENTER_Y = 380;
+const CENTER_Y = 460;
 const CENTRAL_R = 70; // radio del nodo central
-const BRANCH_R = 230; // distancia del centro a las ramas
-const LEAF_R = 410; // distancia del centro a las hojas
-const BRANCH_NODE_W = 150;
-const BRANCH_NODE_H = 56;
-const LEAF_NODE_W = 132;
-const LEAF_NODE_H = 48;
+const BRANCH_R = 205; // distancia del centro a las ramas
+const LEAF_R = 370; // distancia del centro a las hojas
+const BRANCH_NODE_W = 144;
+const BRANCH_NODE_H = 52;
+const LEAF_NODE_W = 104;
+const LEAF_NODE_H = 42;
 
 function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
   const rad = (angleDeg - 90) * (Math.PI / 180);
@@ -136,19 +136,32 @@ export function MindMapCanvas({
         active: centralEdgeActive,
       });
 
-      // hojas: solo se renderizan si la rama está expandida
+      // hojas: solo se renderizan si la rama está expandida.
+      // Se disponen en fila perpendicular a la dirección de la rama (no en
+      // arco) para evitar solapamientos entre hojas de la misma rama.
       const isBranchExpanded = expandedBranches.has(branch.id);
       if (!isBranchExpanded) continue;
 
       const leafCount = branch.children.length;
-      const leafSpan = angleStep * 0.72;
-      const leafStart = branchAngle - leafSpan / 2;
-      const leafStep = leafCount > 1 ? leafSpan / (leafCount - 1) : 0;
+      const leafGap = 6; // separación entre hojas
+      const leafRowW = leafCount * LEAF_NODE_W + (leafCount - 1) * leafGap;
+      // dirección radial (del centro hacia la rama)
+      const rad = (branchAngle - 90) * (Math.PI / 180);
+      // dirección perpendicular (tangente) para distribuir las hojas en fila
+      const perpX = -Math.sin(rad);
+      const perpY = Math.cos(rad);
+      // centro de la fila de hojas (a distancia LEAF_R del centro)
+      const rowCx = CENTER_X + LEAF_R * Math.cos(rad);
+      const rowCy = CENTER_Y + LEAF_R * Math.sin(rad);
 
       branch.children.forEach((leaf: MindNode, li: number) => {
-        const leafAngle =
-          leafCount === 1 ? branchAngle : leafStart + leafStep * li;
-        const leafPos = polarToCartesian(CENTER_X, CENTER_Y, LEAF_R, leafAngle);
+        // offset a lo largo de la perpendicular, centrando la fila
+        const offset =
+          leafCount === 1 ? 0 : (li - (leafCount - 1) / 2) * (LEAF_NODE_W + leafGap);
+        const leafPos = {
+          x: rowCx + perpX * offset,
+          y: rowCy + perpY * offset,
+        };
 
         nodes.push({
           id: leaf.id,
@@ -178,7 +191,12 @@ export function MindMapCanvas({
   }, [activeId, expandedBranches]);
 
   const viewBoxW = 1000;
-  const viewBoxH = 760;
+  // viewBox dinámico: más compacto cuando no hay ramas expandidas (evita
+  // espacio vacío), y completo cuando hay hojas visibles.
+  const hasExpanded = expandedBranches.size > 0;
+  const viewBoxH = hasExpanded ? 900 : 620;
+  // cuando está colapsado, centramos el contenido en el viewBox compacto
+  const viewBoxY = hasExpanded ? 0 : (900 - 620) / 2;
 
   return (
     <div
@@ -187,8 +205,8 @@ export function MindMapCanvas({
       aria-label="Mapa mental interactivo sobre administración del tiempo en Scrum"
     >
       <svg
-        viewBox={`0 0 ${viewBoxW} ${viewBoxH}`}
-        className="h-auto w-full"
+        viewBox={`${0} ${viewBoxY} ${viewBoxW} ${viewBoxH}`}
+        className="h-auto w-full transition-all duration-300 ease-out"
         preserveAspectRatio="xMidYMid meet"
         aria-hidden="true"
       >
@@ -323,7 +341,7 @@ export function MindMapCanvas({
                       ? onSelect({ id: n.id, kind: "branch" })
                       : onSelect({ id: n.id, kind: "leaf" })
                   }
-                  className="flex h-full w-full cursor-pointer flex-col items-center justify-center px-2 text-center focus:outline-none"
+                  className="flex h-full w-full cursor-pointer flex-col items-center justify-center px-1.5 text-center focus:outline-none"
                   aria-label={
                     isBranch
                       ? `Rama ${n.title}. ${n.subtitle}. Activa para escuchar la explicación.`
@@ -333,14 +351,18 @@ export function MindMapCanvas({
                   aria-expanded={isBranch ? expanded : undefined}
                 >
                   <span
-                    className={`text-[12px] font-semibold leading-tight ${
+                    className={`${
+                      isBranch ? "text-[12px]" : "text-[10.5px]"
+                    } font-semibold leading-tight ${
                       isActive ? "text-white" : "text-slate-800"
                     }`}
                   >
                     {n.title}
                   </span>
                   <span
-                    className={`mt-0.5 text-[9px] leading-tight ${
+                    className={`mt-0.5 ${
+                      isBranch ? "text-[8.5px]" : "text-[8px]"
+                    } leading-tight ${
                       isActive ? "text-white/80" : "text-slate-500"
                     }`}
                   >

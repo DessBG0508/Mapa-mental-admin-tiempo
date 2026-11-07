@@ -57,21 +57,131 @@ export function InfoPanel({
 
   if (!hasActiveNode) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
-        <div
-          className="flex size-12 items-center justify-center rounded-full"
-          style={{ backgroundColor: "#E2E8F0", color: "#1F3A5F" }}
-          aria-hidden="true"
-        >
-          <Quote className="size-5" />
+      <div className="flex flex-col gap-4 p-5">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div
+            className="flex size-12 items-center justify-center rounded-full"
+            style={{ backgroundColor: "#E2E8F0", color: "#1F3A5F" }}
+            aria-hidden="true"
+          >
+            <Quote className="size-5" />
+          </div>
+          <p className="text-sm font-medium text-slate-700">
+            Selecciona un nodo del mapa para escuchar su explicación
+          </p>
+          <p className="max-w-xs text-xs text-slate-500">
+            Toca el nodo central, una rama o un nodo hoja. La voz se reproducirá
+            en español y verás la transcripción aquí.
+          </p>
         </div>
-        <p className="text-sm font-medium text-slate-700">
-          Selecciona un nodo del mapa para escuchar su explicación
-        </p>
-        <p className="max-w-xs text-xs text-slate-500">
-          Toca el nodo central, una rama o un nodo hoja. La voz se reproducirá en
-          español y verás la transcripción aquí.
-        </p>
+
+        {/* Guía rápida de las 8 ramas */}
+        <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-500">
+            Recorrido sugerido
+          </p>
+          <ol className="space-y-1.5 text-xs text-slate-600">
+            <li className="flex gap-2">
+              <span
+                className="mt-1 size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: "#1F3A5F" }}
+                aria-hidden="true"
+              />
+              <span>
+                <strong className="text-slate-700">Nodo central</strong>:
+                introduce el tema.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <span
+                className="mt-1 size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: "#8B5CF6" }}
+                aria-hidden="true"
+              />
+              <span>
+                <strong className="text-slate-700">Fundamentos</strong>:
+                timeboxing y empirismo.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <span
+                className="mt-1 size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: "#3B82F6" }}
+                aria-hidden="true"
+              />
+              <span>
+                <strong className="text-slate-700">Eventos y timeboxes</strong>:
+                Sprint, Planning, Daily, Review, Retro.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <span
+                className="mt-1 size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: "#EC4899" }}
+                aria-hidden="true"
+              />
+              <span>
+                <strong className="text-slate-700">Roles</strong>: PO, Scrum
+                Master, Developers.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <span
+                className="mt-1 size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: "#22C55E" }}
+                aria-hidden="true"
+              />
+              <span>
+                <strong className="text-slate-700">Artefactos</strong>:
+                backlogs, DoD, MoSCoW.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <span
+                className="mt-1 size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: "#F59E0B" }}
+                aria-hidden="true"
+              />
+              <span>
+                <strong className="text-slate-700">Técnicas</strong>: foco, WIP,
+                Pomodoro.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <span
+                className="mt-1 size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: "#06B6D4" }}
+                aria-hidden="true"
+              />
+              <span>
+                <strong className="text-slate-700">Métricas</strong>: velocity,
+                burndown, throughput.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <span
+                className="mt-1 size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: "#EF4444" }}
+                aria-hidden="true"
+              />
+              <span>
+                <strong className="text-slate-700">Antipatrones</strong>: lo
+                que el equipo TESH vivió.
+              </span>
+            </li>
+            <li className="flex gap-2">
+              <span
+                className="mt-1 size-2 shrink-0 rounded-full"
+                style={{ backgroundColor: "#14B8A6" }}
+                aria-hidden="true"
+              />
+              <span>
+                <strong className="text-slate-700">Buenas prácticas</strong>:
+                lo que protege el tiempo.
+              </span>
+            </li>
+          </ol>
+        </div>
       </div>
     );
   }

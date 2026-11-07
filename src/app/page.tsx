@@ -1,14 +1,25 @@
 "use client";
 
 import { useCallback, useMemo, useState } from "react";
-import { Brain, Clock, Volume2, AlertCircle, Sparkles } from "lucide-react";
+import {
+  Brain,
+  Clock,
+  Volume2,
+  AlertCircle,
+  Sparkles,
+  Users,
+  Calendar,
+  Gauge,
+  Target,
+  BookOpen,
+  Lightbulb,
+  RotateCcw,
+} from "lucide-react";
 import {
   branches,
   centralNode,
   countExplanatoryNodes,
   totalNarrationSeconds,
-  type MindBranch,
-  type MindNode,
 } from "@/lib/mindmap-data";
 import { useSpeech } from "@/hooks/use-speech";
 import { MindMapCanvas } from "@/components/mindmap/mind-map-canvas";
@@ -16,14 +27,6 @@ import { VoiceControls } from "@/components/mindmap/voice-controls";
 import { InfoPanel } from "@/components/mindmap/info-panel";
 import { BranchLegend } from "@/components/mindmap/branch-legend";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 type Selection =
   | { id: string; kind: "central" | "branch" | "leaf" }
@@ -57,7 +60,6 @@ function findNodeData(id: string): {
         title: b.title,
         subtitle: b.subtitle,
         script: b.script,
-        // las ramas no tienen ejemplo ni error propio; usamos el de su primer hijo como referencia
         example:
           "Esta rama agrupa " +
           b.children.length +
@@ -102,12 +104,16 @@ export default function HomePage() {
     toggleMute,
   } = useSpeech();
 
+  // "mounted" proviene del hook (useSyncExternalStore) y solo es true en el
+  // cliente tras la suscripción, evitando el mismatch de hidratación al
+  // renderizar contenido que depende de APIs del navegador.
+  const mounted = speech.mounted;
+
   const nodeData = useMemo(
     () => (activeId ? findNodeData(activeId) : null),
     [activeId],
   );
 
-  // rama activa (para resaltar leyenda y panel)
   const activeBranchId = useMemo<string | null>(() => {
     if (!activeId) return null;
     if (activeId === centralNode.id) return null;
@@ -122,32 +128,30 @@ export default function HomePage() {
   const totalSec = useMemo(() => totalNarrationSeconds(), []);
   const nodeCount = useMemo(() => countExplanatoryNodes(), []);
 
-  // reproducir un nodo por id (rama, hoja o central)
   const playNode = useCallback(
     (id: string) => {
       const data = findNodeData(id);
       if (!data) return;
-      speak({
-        id,
-        text: data.script,
-        muted: speech.muted,
-      });
+      speak({ id, text: data.script, muted: speech.muted });
       setActiveId(id);
-      // si la rama no está expandida y es una rama, expándela
-      if (branches.some((b) => b.id === id)) {
-        setExpandedBranches((prev) => {
-          const next = new Set(prev);
-          if (next.has(id)) next.delete(id);
-          else next.add(id);
-          return next;
-        });
-      }
+      // nota: el toggle de expandedBranches lo manejan los handlers
+      // específicos (handleToggleBranch / handleSelectBranchFromLegend),
+      // no este playNode, para evitar un doble-toggle que cancele la acción.
     },
     [speak, speech.muted],
   );
 
   const handleSelect = useCallback(
     (sel: { id: string; kind: "central" | "branch" | "leaf" }) => {
+      if (sel.kind === "branch") {
+        // clic directo en una rama del mapa: toggle + narrar
+        setExpandedBranches((prev) => {
+          const next = new Set(prev);
+          if (next.has(sel.id)) next.delete(sel.id);
+          else next.add(sel.id);
+          return next;
+        });
+      }
       playNode(sel.id);
     },
     [playNode],
@@ -155,14 +159,12 @@ export default function HomePage() {
 
   const handleToggleBranch = useCallback(
     (branchId: string) => {
-      // alternar expansión
       setExpandedBranches((prev) => {
         const next = new Set(prev);
         if (next.has(branchId)) next.delete(branchId);
         else next.add(branchId);
         return next;
       });
-      // también narrar la rama
       playNode(branchId);
     },
     [playNode],
@@ -202,183 +204,175 @@ export default function HomePage() {
 
   return (
     <div className="flex min-h-screen flex-col bg-slate-50 text-slate-900">
-      {/* Header */}
+      {/* Header hero */}
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-3 px-4 py-4 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:py-5">
-          <div className="flex items-start gap-3">
-            <div
-              className="flex size-11 shrink-0 items-center justify-center rounded-lg"
-              style={{ backgroundColor: "#1F3A5F" }}
-              aria-hidden="true"
-            >
-              <Brain className="size-6 text-white" />
+        <div className="mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-6">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex items-start gap-3">
+              <div
+                className="flex size-12 shrink-0 items-center justify-center rounded-xl shadow-sm"
+                style={{ backgroundColor: "#1F3A5F" }}
+                aria-hidden="true"
+              >
+                <Brain className="size-6 text-white" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400">
+                  Mapa mental interactivo · Vence hoy 19:00
+                </p>
+                <h1 className="mt-0.5 text-xl font-bold leading-tight tracking-tight text-slate-900 sm:text-2xl">
+                  Administración del tiempo en Scrum
+                </h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  Caso de estudio:{" "}
+                  <span className="font-semibold text-slate-700">
+                    Equilibra TESH
+                  </span>{" "}
+                  · TESH · Gestión de Proyectos de Software 2026
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-lg font-bold leading-tight text-slate-900 sm:text-xl">
-                Administración del tiempo en Scrum
-              </h1>
-              <p className="text-xs text-slate-500 sm:text-sm">
-                Mapa mental interactivo con explicación por voz · Caso de
-                estudio: <span className="font-medium">Equilibra TESH</span>
-              </p>
-            </div>
-          </div>
 
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge
-              variant="outline"
-              className="border-slate-200 bg-slate-50 text-[11px] font-normal text-slate-600"
-            >
-              <Sparkles className="mr-1 size-3" aria-hidden="true" />
-              {branches.length} ramas · {nodeCount} nodos
-            </Badge>
-            <Badge
-              variant="outline"
-              className="border-slate-200 bg-slate-50 text-[11px] font-normal text-slate-600"
-            >
-              <Clock className="mr-1 size-3" aria-hidden="true" />
-              Narración total: {Math.floor(totalSec / 60)} min {totalSec % 60} s
-            </Badge>
-            <Badge
-              variant="outline"
-              className="border-slate-200 bg-slate-50 text-[11px] font-normal text-slate-600"
-            >
-              <Volume2 className="mr-1 size-3" aria-hidden="true" />
-              Voz es-MX
-            </Badge>
+            {/* Stats hero tipo chips */}
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex lg:flex-wrap">
+              <StatChip
+                icon={<Sparkles className="size-3.5" />}
+                value={`${branches.length} ramas`}
+                label="Estructura"
+                tint="#8B5CF6"
+              />
+              <StatChip
+                icon={<BookOpen className="size-3.5" />}
+                value={`${nodeCount} nodos`}
+                label="Explicaciones"
+                tint="#3B82F6"
+              />
+              <StatChip
+                icon={<Clock className="size-3.5" />}
+                value={`${Math.floor(totalSec / 60)}:${String(
+                  totalSec % 60,
+                ).padStart(2, "0")}`}
+                label="Narración total"
+                tint="#F59E0B"
+              />
+              <StatChip
+                icon={<Volume2 className="size-3.5" />}
+                value="es-MX"
+                label="Voz"
+                tint="#14B8A6"
+              />
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Aviso de soporte de voz */}
-        {!speech.supported && (
+      {/* Aviso de soporte de voz — solo tras montaje para evitar mismatch de hidratación */}
+      {mounted && !speech.supported && (
+        <div
+          role="alert"
+          className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-800 sm:px-6"
+        >
+          <AlertCircle
+            className="mr-1 inline size-3 align-text-bottom"
+            aria-hidden="true"
+          />
+          Tu navegador no soporta síntesis de voz. La transcripción seguirá
+          visible pero no se reproducirá audio.
+        </div>
+      )}
+      {mounted &&
+        speech.supported &&
+        speech.voicesReady &&
+        !speech.hasSpanishVoice && (
           <div
-            role="alert"
+            role="status"
             className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-800 sm:px-6"
           >
             <AlertCircle
               className="mr-1 inline size-3 align-text-bottom"
               aria-hidden="true"
             />
-            Tu navegador no soporta síntesis de voz. La transcripción seguirá
-            visible pero no se reproducirá audio.
+            No se encontró una voz en español instalada. La transcripción se
+            mostrará como respaldo.
           </div>
         )}
-        {speech.supported &&
-          speech.voicesReady &&
-          !speech.hasSpanishVoice && (
-            <div
-              role="status"
-              className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-center text-xs text-amber-800 sm:px-6"
-            >
-              <AlertCircle
-                className="mr-1 inline size-3 align-text-bottom"
-                aria-hidden="true"
-              />
-              No se encontró una voz en español instalada. La transcripción se
-              mostrará como respaldo. Para activar voz, instala una voz
-              &ldquo;es&rdquo; en tu sistema operativo.
-            </div>
-          )}
 
-      {/* Main: mapa + panel */}
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 sm:px-6">
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-5">
-          {/* Columna del mapa */}
-          <div className="lg:col-span-3">
-            <Card className="overflow-hidden rounded-lg border-slate-200 shadow-sm">
-              <CardHeader className="border-b border-slate-100 bg-slate-50/60 pb-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <CardTitle className="text-sm font-semibold text-slate-800">
-                      Mapa mental
-                    </CardTitle>
-                    <CardDescription className="text-xs text-slate-500">
-                      Haz clic en cualquier nodo para escuchar su explicación.
-                      Tab para navegar, Enter para activar, Escape para
-                      colapsar.
-                    </CardDescription>
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleExpandAll}
-                      className="h-8 rounded-md text-xs"
-                      aria-label="Expandir todas las ramas"
-                    >
-                      Expandir todo
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleCollapseAll}
-                      className="h-8 rounded-md text-xs"
-                      aria-label="Colapsar todas las ramas"
-                    >
-                      Colapsar todo
-                    </Button>
-                  </div>
+      {/* Main: layout Pinterest en dos columnas */}
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-5 sm:px-6 sm:py-6">
+        {/* Fila superior: mapa (grande) + panel info (lateral) */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+          {/* Tarjeta del mapa mental — destacada */}
+          <section className="lg:col-span-8">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-4 py-3 sm:px-5">
+                <div>
+                  <h2 className="text-sm font-semibold text-slate-800">
+                    Mapa mental
+                  </h2>
+                  <p className="text-xs text-slate-500">
+                    Haz clic en un nodo para escuchar su explicación · Tab para
+                    navegar, Enter para activar
+                  </p>
                 </div>
-              </CardHeader>
-              <CardContent className="p-0">
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleExpandAll}
+                    className="h-8 rounded-lg text-xs font-medium"
+                    aria-label="Expandir todas las ramas"
+                  >
+                    Expandir todo
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleCollapseAll}
+                    className="h-8 rounded-lg text-xs font-medium"
+                    aria-label="Colapsar todas las ramas"
+                  >
+                    Colapsar todo
+                  </Button>
+                </div>
+              </div>
+
+              {/* Lienzo del mapa */}
+              <div className="bg-slate-50/40 px-2 pt-2 sm:px-4 sm:pt-4">
                 <MindMapCanvas
                   activeId={activeId}
                   expandedBranches={expandedBranches}
                   onSelect={handleSelect}
                   onToggleBranch={handleToggleBranch}
                 />
-                {/* Leyenda de ramas */}
-                <div className="border-t border-slate-100 bg-white px-4 py-3">
-                  <BranchLegend
-                    activeBranchId={activeBranchId}
-                    onSelectBranch={handleSelectBranchFromLegend}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+              </div>
 
-            {/* Controles de voz (debajo del mapa en móvil, dentro del panel en desktop) */}
-            <Card className="mt-4 rounded-lg border-slate-200 shadow-sm lg:hidden">
-              <CardHeader className="border-b border-slate-100 bg-slate-50/60 pb-3">
-                <CardTitle className="text-sm font-semibold text-slate-800">
-                  Controles de voz
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-3">
-                <VoiceControls
-                  supported={speech.supported}
-                  speaking={speech.speaking}
-                  paused={speech.paused}
-                  muted={speech.muted}
-                  hasActiveNode={activeId !== null}
-                  onPlay={handlePlay}
-                  onPause={pause}
-                  onResume={resume}
-                  onStop={stop}
-                  onRepeat={repeat}
-                  onToggleMute={toggleMute}
-                  onResetMap={handleResetMap}
+              {/* Leyenda — separada, no superpuesta */}
+              <div className="border-t border-slate-100 bg-white px-4 py-3 sm:px-5">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                  Ramas del mapa
+                </p>
+                <BranchLegend
+                  activeBranchId={activeBranchId}
+                  onSelectBranch={handleSelectBranchFromLegend}
                 />
-              </CardContent>
-            </Card>
-          </div>
+              </div>
+            </div>
+          </section>
 
-          {/* Columna del panel de información */}
-          <div className="lg:col-span-2">
-            <Card className="flex h-full flex-col rounded-lg border-slate-200 shadow-sm">
-              <CardHeader className="border-b border-slate-100 bg-slate-50/60 pb-3">
-                <CardTitle className="text-sm font-semibold text-slate-800">
+          {/* Panel de información + controles de voz — lateral, apilados */}
+          <aside className="flex flex-col gap-4 lg:col-span-4">
+            <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-4 py-3 sm:px-5">
+                <h2 className="text-sm font-semibold text-slate-800">
                   Explicación del nodo
-                </CardTitle>
-                <CardDescription className="text-xs text-slate-500">
-                  Transcripción sincronizada con la voz, ejemplo real del
-                  proyecto y error común.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex-1 overflow-hidden p-0">
+                </h2>
+                <p className="text-xs text-slate-500">
+                  Transcripción, ejemplo y error común
+                </p>
+              </div>
+              <div className="max-h-[560px] overflow-y-auto">
                 <InfoPanel
                   title={nodeData?.title ?? ""}
                   subtitle={nodeData?.subtitle ?? ""}
@@ -392,149 +386,238 @@ export default function HomePage() {
                   isNarrating={speech.speaking && !speech.paused}
                   hasActiveNode={activeId !== null && nodeData !== null}
                 />
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
-            {/* Controles de voz (desktop) */}
-            <Card className="mt-4 hidden rounded-lg border-slate-200 shadow-sm lg:block">
-              <CardHeader className="border-b border-slate-100 bg-slate-50/60 pb-3">
-                <CardTitle className="text-sm font-semibold text-slate-800">
+            {/* Controles de voz — en la columna derecha, debajo del panel */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="mb-3 flex items-center gap-2">
+                <Volume2 className="size-4 text-slate-400" aria-hidden="true" />
+                <h2 className="text-sm font-semibold text-slate-800">
                   Controles de voz
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-3">
-                <VoiceControls
-                  supported={speech.supported}
-                  speaking={speech.speaking}
-                  paused={speech.paused}
-                  muted={speech.muted}
-                  hasActiveNode={activeId !== null}
-                  onPlay={handlePlay}
-                  onPause={pause}
-                  onResume={resume}
-                  onStop={stop}
-                  onRepeat={repeat}
-                  onToggleMute={toggleMute}
-                  onResetMap={handleResetMap}
-                />
-              </CardContent>
-            </Card>
-          </div>
+                </h2>
+              </div>
+              <VoiceControls
+                supported={speech.supported}
+                speaking={speech.speaking}
+                paused={speech.paused}
+                muted={speech.muted}
+                hasActiveNode={activeId !== null}
+                onPlay={handlePlay}
+                onPause={pause}
+                onResume={resume}
+                onStop={stop}
+                onRepeat={repeat}
+                onToggleMute={toggleMute}
+                onResetMap={handleResetMap}
+              />
+            </div>
+          </aside>
         </div>
 
-        {/* Sección de contexto del proyecto */}
-        <Card className="mt-5 rounded-lg border-slate-200 shadow-sm">
-          <CardHeader className="border-b border-slate-100 bg-slate-50/60 pb-3">
-            <CardTitle className="text-sm font-semibold text-slate-800">
-              Contexto del caso de estudio: Equilibra TESH
-            </CardTitle>
-            <CardDescription className="text-xs text-slate-500">
-              Sistema universitario de tamizaje emocional voluntario · TESH ·
-              Gestión de Proyectos de Software 2026
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
-            <ContextBlock title="Product Goal">
+        {/* Sección de contexto — masonry tipo Pinterest */}
+        <div className="mt-6">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="h-px flex-1 bg-slate-200" aria-hidden="true" />
+            <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Contexto del caso de estudio
+            </h2>
+            <div className="h-px flex-1 bg-slate-200" aria-hidden="true" />
+          </div>
+          <div className="columns-1 gap-4 sm:columns-2 lg:columns-3 [&>*]:mb-4 [&>*]:break-inside-avoid">
+            <PinCard
+              icon={<Target className="size-4" />}
+              tint="#1F3A5F"
+              title="Product Goal"
+            >
               Al finalizar el semestre, todo estudiante del TESH podrá realizar
               un tamizaje emocional voluntario 24/7 desde su celular, y el
               psicólogo recibirá el expediente pre-procesado automáticamente,
               eliminando el cálculo manual.
-            </ContextBlock>
-            <ContextBlock title="Equipo Scrum">
-              <ul className="space-y-1">
-                <li>Denisse Bautista González — Product Owner</li>
-                <li>Esmeralda Santizo Cruz — Backend / Scrum Master en práctica</li>
-                <li>Sharon Abigail Parra González — IA y Frontend</li>
-                <li>Alexa M. Sisneros Valdez — QA y Documentación</li>
-                <li>Mario Gutiérrez Ayala — Scrum Master (asesor)</li>
+            </PinCard>
+
+            <PinCard
+              icon={<Users className="size-4" />}
+              tint="#EC4899"
+              title="Equipo Scrum"
+            >
+              <ul className="space-y-1.5">
+                <li>
+                  <strong>Denisse Bautista González</strong> — Product Owner
+                </li>
+                <li>
+                  <strong>Esmeralda Santizo Cruz</strong> — Backend / Scrum
+                  Master en práctica
+                </li>
+                <li>
+                  <strong>Sharon Abigail Parra González</strong> — IA y Frontend
+                </li>
+                <li>
+                  <strong>Alexa M. Sisneros Valdez</strong> — QA y Documentación
+                </li>
+                <li>
+                  <strong>Mario Gutiérrez Ayala</strong> — Scrum Master (asesor)
+                </li>
               </ul>
-            </ContextBlock>
-            <ContextBlock title="Cronograma real">
-              <ul className="space-y-1">
-                <li>Sprint 0: 1 semana (preparación)</li>
-                <li>Sprint 1: 2 semanas (BD y autenticación)</li>
-                <li>Sprint 2: 2 semanas (UI/UX)</li>
-                <li>Sprint 3: 2 semanas (tamizaje con Eli)</li>
-                <li>Sprint 4: 2 semanas + fines de semana (scoring y voz)</li>
-                <li>Sprint 5: 3 semanas (integración y piloto)</li>
+            </PinCard>
+
+            <PinCard
+              icon={<Calendar className="size-4" />}
+              tint="#3B82F6"
+              title="Cronograma real"
+            >
+              <ul className="space-y-1.5">
+                <li>
+                  <strong>Sprint 0:</strong> 1 semana (preparación)
+                </li>
+                <li>
+                  <strong>Sprint 1:</strong> 2 semanas (BD y autenticación)
+                </li>
+                <li>
+                  <strong>Sprint 2:</strong> 2 semanas (UI/UX)
+                </li>
+                <li>
+                  <strong>Sprint 3:</strong> 2 semanas (tamizaje con Eli)
+                </li>
+                <li>
+                  <strong>Sprint 4:</strong> 2 semanas + fines de semana
+                  (scoring y voz)
+                </li>
+                <li>
+                  <strong>Sprint 5:</strong> 3 semanas (integración y piloto)
+                </li>
               </ul>
-            </ContextBlock>
-            <ContextBlock title="Capacidad real del equipo">
+            </PinCard>
+
+            <PinCard
+              icon={<Gauge className="size-4" />}
+              tint="#F59E0B"
+              title="Capacidad real"
+            >
               4 personas × ~10 h/semana = ~40 h/semana (80 h en sprint de 2
               semanas). Carga máxima planeada: ~26 SP o ~70-73 h. Colchón: 6 a
               37 h según el sprint. Acuerdo A-10: fines de semana laborables
               desde S4 (~112 h).
-            </ContextBlock>
-            <ContextBlock title="Retrospective 23/10/2026 (MIN-009)">
-              <ul className="space-y-1">
-                <li>A1: QA desde el día 3, no el 7.</li>
-                <li>A3: 10% del sprint para refactor (~11 h).</li>
-                <li>A5: Transferencia Sharon ↔ Esmeralda (anti bus-factor).</li>
-                <li>A8: Modo incógnito (traductor de Chrome corrompía SQL).</li>
-                <li>A9: Estandarizar npm, no bun.</li>
+            </PinCard>
+
+            <PinCard
+              icon={<RotateCcw className="size-4" />}
+              tint="#8B5CF6"
+              title="Retrospective 23/10/2026"
+              subtitle="MIN-009"
+            >
+              <ul className="space-y-1.5">
+                <li>
+                  <strong>A1:</strong> QA desde el día 3, no el 7.
+                </li>
+                <li>
+                  <strong>A3:</strong> 10% del sprint para refactor (~11 h).
+                </li>
+                <li>
+                  <strong>A5:</strong> Transferencia Sharon ↔ Esmeralda (anti
+                  bus-factor).
+                </li>
+                <li>
+                  <strong>A8:</strong> Modo incógnito (traductor de Chrome
+                  corrompía SQL).
+                </li>
+                <li>
+                  <strong>A9:</strong> Estandarizar npm, no bun.
+                </li>
               </ul>
-            </ContextBlock>
-            <ContextBlock title="Lección estrella">
+            </PinCard>
+
+            <PinCard
+              icon={<Lightbulb className="size-4" />}
+              tint="#EF4444"
+              title="Lección estrella"
+              highlight
+            >
               &ldquo;La regla ítem 9 &gt; 0 → rojo no es decorativa: es la
               salvaguarda que separa un sistema de salud mental funcional de uno
-              peligroso.&rdquo; — Guía Sprint Review+Retrospective, 23 oct
-              2026.
-            </ContextBlock>
-          </CardContent>
-        </Card>
+              peligroso.&rdquo;
+              <footer className="mt-2 text-xs text-slate-500">
+                Guía Sprint Review+Retrospective, 23 oct 2026
+              </footer>
+            </PinCard>
+          </div>
+        </div>
 
         {/* Instrucciones de uso y pruebas */}
-        <Card className="mt-5 rounded-lg border-slate-200 shadow-sm">
-          <CardHeader className="border-b border-slate-100 bg-slate-50/60 pb-3">
-            <CardTitle className="text-sm font-semibold text-slate-800">
-              Instrucciones de uso y pruebas recomendadas
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="grid grid-cols-1 gap-4 p-4 sm:grid-cols-2">
-            <div>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+        <div className="mt-6">
+          <div className="mb-3 flex items-center gap-2">
+            <div className="h-px flex-1 bg-slate-200" aria-hidden="true" />
+            <h2 className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+              Cómo usar y probar
+            </h2>
+            <div className="h-px flex-1 bg-slate-200" aria-hidden="true" />
+          </div>
+          <div className="columns-1 gap-4 sm:columns-2 [&>*]:mb-4 [&>*]:break-inside-avoid">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800">
+                <BookOpen className="size-4 text-slate-400" aria-hidden="true" />
                 Cómo usar el mapa
               </h3>
               <ul className="space-y-1.5 text-sm text-slate-700">
                 <li>
-                  • Haz clic en el nodo central, una rama o un nodo hoja para
+                  Haz clic en el nodo central, una rama o un nodo hoja para
                   reproducir su explicación con voz en español.
                 </li>
                 <li>
-                  • Usa los controles para reproducir, pausar, detener, repetir
-                  o silenciar la voz.
+                  Usa los controles para reproducir, pausar, detener, repetir o
+                  silenciar la voz.
                 </li>
                 <li>
-                  • La transcripción se resalta en sincronía con la voz.
+                  La transcripción se resalta en sincronía con la voz.
                 </li>
                 <li>
-                  • Navega con Tab entre nodos; Enter para activar; Escape para
+                  Navega con Tab entre nodos; Enter para activar; Escape para
                   colapsar una rama.
                 </li>
                 <li>
-                  • El botón &ldquo;Reiniciar mapa&rdquo; colapsa todo y detiene
-                  la voz.
+                  El botón &ldquo;Reiniciar mapa&rdquo; colapsa todo y detiene la
+                  voz.
                 </li>
               </ul>
             </div>
-            <div>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <h3 className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-800">
+                <Sparkles className="size-4 text-slate-400" aria-hidden="true" />
                 Pruebas recomendadas
               </h3>
               <ul className="space-y-1.5 text-sm text-slate-700">
-                <li>• Voz: clic en el nodo central y cada rama; la voz inicia y la transcripción se sincroniza.</li>
-                <li>• Controles: probar play, pause, stop, repeat y mute en distintos momentos.</li>
-                <li>• Teclado: Tab entre nodos; Enter para activar; Escape para colapsar.</li>
-                <li>• Responsive: en móvil el mapa se reorganiza sin scroll horizontal.</li>
-                <li>• Fallback: si no hay voz en español, la transcripción sigue legible.</li>
-                <li>• Duración total: {Math.floor(totalSec / 60)} min {totalSec % 60} s (meta: 4-6 min).</li>
+                <li>
+                  <strong>Voz:</strong> clic en el nodo central y cada rama; la
+                  voz inicia y la transcripción se sincroniza.
+                </li>
+                <li>
+                  <strong>Controles:</strong> probar play, pause, stop, repeat y
+                  mute en distintos momentos.
+                </li>
+                <li>
+                  <strong>Teclado:</strong> Tab entre nodos; Enter para activar;
+                  Escape para colapsar.
+                </li>
+                <li>
+                  <strong>Responsive:</strong> en móvil el mapa se reorganiza sin
+                  scroll horizontal.
+                </li>
+                <li>
+                  <strong>Fallback:</strong> si no hay voz en español, la
+                  transcripción sigue legible.
+                </li>
+                <li>
+                  <strong>Duración total:</strong>{" "}
+                  {Math.floor(totalSec / 60)} min {totalSec % 60} s (meta: 4-6
+                  min).
+                </li>
               </ul>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </main>
 
-      {/* Footer sticky */}
+      {/* Footer sticky al fondo */}
       <footer className="mt-auto border-t border-slate-200 bg-white">
         <div className="mx-auto flex max-w-7xl flex-col gap-1 px-4 py-3 text-center text-xs text-slate-500 sm:px-6 sm:text-left">
           <p>
@@ -542,8 +625,7 @@ export default function HomePage() {
             TESH · Gestión de Proyectos de Software 2026
           </p>
           <p className="text-slate-400">
-            Contenido basado en la Scrum Guide 2020. Las narraciones usan
-            ejemplos reales del proyecto. Voz generada con la API
+            Contenido basado en la Scrum Guide 2020. Voz generada con la API
             SpeechSynthesis del navegador.
           </p>
         </div>
@@ -552,18 +634,80 @@ export default function HomePage() {
   );
 }
 
-function ContextBlock({
+// Chip de estadística del header
+function StatChip({
+  icon,
+  value,
+  label,
+  tint,
+}: {
+  icon: React.ReactNode;
+  value: string;
+  label: string;
+  tint: string;
+}) {
+  return (
+    <div className="flex items-center gap-2.5 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+      <span
+        className="flex size-8 items-center justify-center rounded-lg"
+        style={{ backgroundColor: `${tint}15`, color: tint }}
+        aria-hidden="true"
+      >
+        {icon}
+      </span>
+      <div className="min-w-0">
+        <p className="text-sm font-bold leading-none text-slate-800">
+          {value}
+        </p>
+        <p className="mt-0.5 text-[10px] font-medium uppercase tracking-wider text-slate-400">
+          {label}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// Tarjeta tipo Pinterest
+function PinCard({
+  icon,
   title,
+  subtitle,
+  tint,
+  highlight,
   children,
 }: {
+  icon: React.ReactNode;
   title: string;
+  subtitle?: string;
+  tint: string;
+  highlight?: boolean;
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-md border border-slate-200 bg-white p-3">
-      <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
-        {title}
-      </h3>
+    <div
+      className={`rounded-2xl border bg-white p-4 shadow-sm transition-shadow hover:shadow-md ${
+        highlight ? "border-red-200" : "border-slate-200"
+      }`}
+    >
+      <div className="mb-2.5 flex items-center gap-2.5">
+        <span
+          className="flex size-8 items-center justify-center rounded-lg"
+          style={{ backgroundColor: `${tint}15`, color: tint }}
+          aria-hidden="true"
+        >
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <h3 className="text-sm font-semibold leading-tight text-slate-800">
+            {title}
+          </h3>
+          {subtitle && (
+            <p className="text-[10px] font-medium uppercase tracking-wider text-slate-400">
+              {subtitle}
+            </p>
+          )}
+        </div>
+      </div>
       <div className="text-sm leading-relaxed text-slate-700">{children}</div>
     </div>
   );

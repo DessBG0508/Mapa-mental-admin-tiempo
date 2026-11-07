@@ -1,8 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 export interface SpeechState {
+  mounted: boolean;
   speaking: boolean;
   paused: boolean;
   muted: boolean;
@@ -37,14 +44,30 @@ function pickSpanishVoice(
   return any ?? null;
 }
 
+// Suscripción externa segura para SSR: devuelve false en el server y en el
+// primer render del cliente, true tras la suscripción. Esto evita el mismatch
+// de hidratación y el warning del linter sobre setState síncrono en effects.
+const emptySubscribe = () => () => {};
+function getMountedSnapshot() {
+  return true; // en cliente, tras suscripción
+}
+function getMountedServerSnapshot() {
+  return false; // en server y primer render del cliente
+}
+
 export function useSpeech() {
-  // Soporte inicial determinado de forma perezosa (evita setState síncrono en effect)
-  const [supported] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return typeof window.speechSynthesis !== "undefined";
-  });
+  // "mounted" solo se vuelve true en el cliente, tras la suscripción.
+  // En el server y primer render del cliente es false → sin mismatch.
+  const mounted = useSyncExternalStore(
+    emptySubscribe,
+    getMountedSnapshot,
+    getMountedServerSnapshot,
+  );
+  // supported solo es true cuando ya estamos montados en cliente y la API existe
+  const supported = mounted && typeof window !== "undefined" && typeof window.speechSynthesis !== "undefined";
 
   const [state, setState] = useState<SpeechState>({
+    mounted: false,
     speaking: false,
     paused: false,
     muted: false,
@@ -268,7 +291,7 @@ export function useSpeech() {
   }, [attachEvents, buildUtterance]);
 
   return {
-    state: { ...state, supported },
+    state: { ...state, mounted, supported },
     speak,
     pause,
     resume,
